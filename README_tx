@@ -1,0 +1,78 @@
+#include <Wire.h>
+#include <LiquidCrystal.h>
+#include "MS5611.h"
+
+LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
+MS5611 ms5611(0x77);
+
+// Update sea-level pressure for Vijayawada (~1007 mbar, adjust if needed)
+const float seaLevelPressure = 1007.0;  
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+
+  Serial.println();
+  Serial.println(__FILE__);
+  Serial.print("MS5611_LIB_VERSION: ");
+  Serial.println(MS5611_LIB_VERSION);
+  Serial.println();
+
+  lcd.begin(16, 2);
+  lcd.print("ALTIMETER READY");
+
+  Wire.begin();
+  if (ms5611.begin() == true) {
+    Serial.print("MS5611 found: ");
+    Serial.println(ms5611.getAddress());
+    lcd.setCursor(0, 1);
+    lcd.print("MS5611 FOUND");
+  } else {
+    Serial.println("MS5611 not found. Halt.");
+    lcd.setCursor(0, 1);
+    lcd.print("NOT FOUND");
+    while (1); // halt
+  }
+
+  delay(2000);
+  lcd.clear();
+  Serial.println("Celsius\tmBar\tAltitude");
+}
+
+void loop() {
+  float temperature = 0, pressure = 0;
+
+  // Take 5 readings for stability
+  for (int i = 0; i < 5; i++) {
+    ms5611.read();
+    temperature += ms5611.getTemperature();
+    pressure += ms5611.getPressure() / 100.0; // Pa → mBar
+    delay(10);
+  }
+  temperature /= 5.0;
+  pressure /= 5.0;
+
+  float altitude = 44330.0 * (1.0 - pow(pressure / seaLevelPressure, 0.1903));
+
+  // Serial output
+  Serial.print(temperature, 2);
+  Serial.print(",");
+  Serial.print(pressure, 2);
+  Serial.print(",");
+  Serial.println(altitude, 2);
+
+  // LCD output (no flicker)
+  lcd.setCursor(0, 0);
+  lcd.print("T:");
+  lcd.print(temperature, 1);
+  lcd.print("C P:");
+  lcd.print(pressure, 0);
+  lcd.print("   "); // clear leftovers
+
+  lcd.setCursor(0, 1);
+  lcd.print("Alt:");
+  lcd.print(altitude, 1);
+  lcd.print("m   "); // clear leftovers
+
+  delay(1000);
+}
